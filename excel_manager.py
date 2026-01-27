@@ -1,29 +1,5 @@
-import os
-import re
-import fitz  # PyMuPDF
 from openpyxl import load_workbook
 from openpyxl.styles import Border
-
-# --- CONFIGURACIÓN GLOBAL (Cerrado a modificación, abierto a expansión) ---
-NOMINA_MAPPER = {
-    "Empleado Fijo Administrativo": "EF ADM",
-    "Empleado Fijo Enfermeros": "EF ENFER",
-    "Empleado Fijo Médicos": "EF MEDICO",
-    "Empleado Fijo Otros Gremios": "EF OTROS GRE",
-    "Obrero Fijo": "OF OBRERO",
-    "Empleado Contratado Administrativo": "EC ADM",
-    "Empleado Contratado Enfermeros": "EC ENFER",
-    "Empleado Contratado Médicos": "EC MEDICO",
-    "Empleado Contratado Otros Gremios": "EC OTROS GRE",
-    "Obrero Contratado": "OC OBRERO"
-}
-
-VALID_HEADER = "Personal Con Cuenta Bancaria Activa"
-
-# --- CLASES ---
-
-
-
 class ExcelBox:
     """O de SOLID: Maneja la lógica de un cuadro. Se instancia por sección."""
     
