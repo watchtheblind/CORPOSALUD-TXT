@@ -46,10 +46,6 @@ Para mantener el código limpio, seguiremos este esquema:
 
 ---
 
-## 📝 Borrador del README.md
-
-Podemos empezar a redactarlo así:
-
 # Extractor de Datos PDF a Excel
 
 Este software permite automatizar la extracción de información específica desde múltiples archivos PDF, consolidando los resultados en una plantilla de Excel predefinida.
@@ -67,5 +63,3 @@ Este software permite automatizar la extracción de información específica des
 * Dependencias: `pip install pandas openpyxl pymupdf customtkinter`
 
 ---
-
-**¿Qué te parece esta selección?** Si estás de acuerdo, quedo a la espera del **wireframe** y los parámetros en el siguiente prompt para empezar a diseñar la estructura de las clases y las funciones de extracción.
