@@ -1,110 +1,186 @@
 import customtkinter as ctk
-from tkinter import filedialog, messagebox
-import os
-from extractor import PDFWorker
-from excel_manager import ExcelBox
-from openpyxl import load_workbook
+from tkinter import filedialog
 
-# Configuración de apariencia
-ctk.set_appearance_mode("System")
+# Configuración visual
+ctk.set_appearance_mode("Dark")
 ctk.set_default_color_theme("blue")
 
 class App(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.title("Extractor de Nómina POO - Corposalud")
-        self.geometry("700x500")
-
-        # Variables de ruta
-        self.excel_path = ctk.StringVar()
-        self.pdf_folder = ctk.StringVar()
-
-        self._setup_gui()
-
-    def _setup_gui(self):
-        self.grid_columnconfigure(0, weight=1)
+        # Ventana Principal
+        self.title("GENERADOR DE CUADROS TXT")
+        self.geometry("900x650")
         
-        # --- TÍTULO ---
-        self.label_title = ctk.CTkLabel(self, text="Panel de Extracción de Nómina", font=ctk.CTkFont(size=20, weight="bold"))
-        self.label_title.pack(pady=20)
+        # --- VARIABLES DE RUTA ---
+        # Izquierda
+        self.path_q1 = ctk.StringVar()
+        self.path_q2 = ctk.StringVar()
+        self.path_vacacional = ctk.StringVar()
+        self.path_nocturno = ctk.StringVar()
+        
+        # Derecha
+        self.path_domingos = ctk.StringVar()
+        self.path_primas = ctk.StringVar()
+        self.path_excel = ctk.StringVar()
 
-        # --- SELECCIÓN DE EXCEL ---
-        self.btn_excel = ctk.CTkButton(self, text="1. Seleccionar Plantilla Excel", command=self._select_excel)
-        self.btn_excel.pack(pady=10)
-        self.lbl_excel = ctk.CTkLabel(self, textvariable=self.excel_path, font=ctk.CTkFont(size=10))
-        self.lbl_excel.pack()
+        self._build_ui()
 
-        # --- SELECCIÓN DE CARPETA PDF ---
-        self.btn_pdfs = ctk.CTkButton(self, text="2. Seleccionar Carpeta de PDFs", command=self._select_folder)
-        self.btn_pdfs.pack(pady=10)
-        self.lbl_folder = ctk.CTkLabel(self, textvariable=self.pdf_folder, font=ctk.CTkFont(size=10))
-        self.lbl_folder.pack()
+    def _build_ui(self):
+        # TÍTULO PRINCIPAL
+        lbl_title = ctk.CTkLabel(
+            self, text="GENERADOR DE CUADROS TXT", 
+            font=ctk.CTkFont(size=26, weight="bold")
+        )
+        lbl_title.pack(pady=20)
 
-        # --- LOG DE ACTIVIDAD ---
-        self.textbox_log = ctk.CTkTextbox(self, width=600, height=150)
-        self.textbox_log.pack(pady=20, padx=20)
-        self._log("Esperando selección de archivos...")
+        # CONTENEDOR PRINCIPAL (2 COLUMNAS)
+        main_frame = ctk.CTkFrame(self, fg_color="transparent")
+        main_frame.pack(fill="both", expand=True, padx=20, pady=10)
+        
+        # Configurar columnas (50% cada una)
+        main_frame.grid_columnconfigure(0, weight=1)
+        main_frame.grid_columnconfigure(1, weight=1)
+
+        # ==================================================
+        # SECCIÓN IZQUIERDA
+        # ==================================================
+        left_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        left_frame.grid(row=0, column=0, sticky="nsew", padx=20)
+
+        # --- BLOQUE 1: QUINCENAS ---
+        # Icono y Label Secundario
+        self._create_section_header(left_frame, "📅", "Quincenas")
+        
+        # Label Terciario + Campo 1 (Primera Quincena)
+        self._create_input_block(left_frame, "Primera Quincena", self.path_q1, is_folder=True)
+        
+        # Label Terciario + Campo 2 (Segunda Quincena)
+        self._create_input_block(left_frame, "Segunda Quincena", self.path_q2, is_folder=True)
+
+        # Separador visual
+        ctk.CTkFrame(left_frame, height=2, fg_color="gray30").pack(fill="x", pady=20)
+
+        # --- BLOQUE 2: BONOS ---
+        # Icono y Label Secundario
+        self._create_section_header(left_frame, "💵", "Bonos")
+
+        # Label Terciario + Campo (Bono Vacacional)
+        self._create_input_block(left_frame, "Bono Vacacional", self.path_vacacional, is_folder=True)
+
+        # Label Terciario + Campo (Bono Nocturno)
+        self._create_input_block(left_frame, "Bono Nocturno", self.path_nocturno, is_folder=True)
+
+
+        # ==================================================
+        # SECCIÓN DERECHA
+        # ==================================================
+        right_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        right_frame.grid(row=0, column=1, sticky="nsew", padx=20)
+
+        # --- BLOQUE 3: DOMINGOS ---
+        # Icono y Label Secundario
+        self._create_section_header(right_frame, "☀️", "Domingo y Feriado")
+        
+        # Campo directo (sin label terciario según instrucción)
+        self._create_input_block(right_frame, None, self.path_domingos, is_folder=True)
+
+        # Separador
+        ctk.CTkFrame(right_frame, height=2, fg_color="gray30").pack(fill="x", pady=20)
+
+        # --- BLOQUE 4: PRIMAS ---
+        # Label Secundario
+        self._create_section_header(right_frame, "👤", "Prima por hijos y becas")
+        
+        # Campo directo
+        self._create_input_block(right_frame, None, self.path_primas, is_folder=True)
+
+        # Espacio flexible para empujar lo siguiente al fondo si fuera necesario, 
+        # pero aquí pondremos la plantilla Excel abajo como pediste.
+        
+        ctk.CTkFrame(right_frame, height=2, fg_color="gray30").pack(fill="x", pady=20)
+
+        # --- BLOQUE 5: PLANTILLA EXCEL ---
+        # Label Secundario
+        lbl_excel = ctk.CTkLabel(right_frame, text="Plantilla de Excel", font=ctk.CTkFont(size=18, weight="bold"))
+        lbl_excel.pack(anchor="w", pady=(10, 5))
+        
+        # Campo Excel (Selección de ARCHIVO, no carpeta)
+        self._create_input_block(right_frame, None, self.path_excel, is_folder=False)
 
         # --- BOTÓN PROCESAR ---
-        self.btn_run = ctk.CTkButton(self, text="INICIAR PROCESAMIENTO", fg_color="green", hover_color="#006400", command=self._start_process)
-        self.btn_run.pack(pady=20)
+        self.btn_process = ctk.CTkButton(
+            right_frame,
+            text="PROCESAR ARCHIVOS",
+            font=ctk.CTkFont(size=16, weight="bold"),
+            height=50,
+            fg_color="#27ae60", hover_color="#2ecc71",
+            command=self._process_files
+        )
+        self.btn_process.pack(fill="x", pady=(40, 0))
 
-    def _log(self, message):
-        self.textbox_log.insert("end", f"> {message}\n")
-        self.textbox_log.see("end")
 
-    def _select_excel(self):
-        path = filedialog.askopenfilename(filetypes=[("Excel files", "*.xlsx")])
-        if path:
-            self.excel_path.set(path)
-            self._log(f"Excel seleccionado: {os.path.basename(path)}")
+    # --- HELPERS PARA NO REPETIR CÓDIGO ---
 
-    def _select_folder(self):
-        path = filedialog.askdirectory()
-        if path:
-            self.pdf_folder.set(path)
-            self._log(f"Carpeta de PDFs seleccionada: {path}")
-
-    def _start_process(self):
-        if not self.excel_path.get() or not self.pdf_folder.get():
-            messagebox.showwarning("Atención", "Por favor selecciona ambos: el Excel y la carpeta de PDFs.")
-            return
-
-        self._log("Iniciando proceso...")
+    def _create_section_header(self, parent, icon, text):
+        """Crea el encabezado con icono y texto secundario"""
+        frame = ctk.CTkFrame(parent, fg_color="transparent")
+        frame.pack(fill="x", pady=(10, 5))
         
-        try:
-            # 1. Cargar el libro de Excel una sola vez
-            wb = load_workbook(self.excel_path.get())
-            ws = wb.active # O busca la hoja por nombre si es necesario
-            
-            # 2. Instanciar los cuadros (Usando la lógica de anclaje de ExcelBox)
-            # Aquí aplicamos el principio de responsabilidad única
-            cuadro_1era = ExcelBox(ws, "1ERA QCNA")
-            
-            # 3. Listar archivos y procesar
-            files = [f for f in os.listdir(self.pdf_folder.get()) if f.endswith(".pdf")]
-            
-            for f in files:
-                full_path = os.path.join(self.pdf_folder.get(), f)
-                worker = PDFWorker(full_path)
-                data = worker.process()
-                
-                if data:
-                    self._log(f"Procesando {f}: {data['gremio']} - {data['monto']} Bs.")
-                    # 4. Llenar en el cuadro correspondiente (Elegimos 1ERA QCNA para esta prueba)
-                    cuadro_1era.fill(data['gremio'], data['monto'], data['trabajadores'])
-                else:
-                    self._log(f"Omitido {f}: No cumple criterios o grupo no mapeado.")
+        lbl_icon = ctk.CTkLabel(frame, text=icon, font=ctk.CTkFont(size=28))
+        lbl_icon.pack(side="left", padx=(0, 10))
+        
+        lbl_text = ctk.CTkLabel(frame, text=text, font=ctk.CTkFont(size=18, weight="bold"))
+        lbl_text.pack(side="left")
 
-            # 5. Guardar cambios
-            wb.save(self.excel_path.get())
-            self._log("!!! PROCESO FINALIZADO CON ÉXITO !!!")
-            messagebox.showinfo("Éxito", "El archivo Excel ha sido actualizado.")
+    def _create_input_block(self, parent, label_text, variable, is_folder=True):
+        """Crea el label terciario (opcional) + Entry + Botón de 3 puntos"""
+        
+        # Label Terciario (si existe)
+        if label_text:
+            lbl = ctk.CTkLabel(parent, text=label_text, font=ctk.CTkFont(size=12))
+            lbl.pack(anchor="w", pady=(5, 0))
 
-        except Exception as e:
-            self._log(f"ERROR CRÍTICO: {str(e)}")
-            messagebox.showerror("Error", f"Ocurrió un error inesperado: {e}")
+        # Contenedor Entry + Botón
+        input_frame = ctk.CTkFrame(parent, fg_color="transparent")
+        input_frame.pack(fill="x", pady=(0, 10))
+
+        entry = ctk.CTkEntry(
+            input_frame, 
+            textvariable=variable, 
+            placeholder_text="Seleccione carpeta..." if is_folder else "Seleccione archivo Excel...",
+            state="readonly"
+        )
+        entry.pack(side="left", fill="x", expand=True, padx=(0, 5))
+
+        btn = ctk.CTkButton(
+            input_frame, 
+            text="...", 
+            width=40, 
+            fg_color="#34495e",
+            command=lambda: self._open_dialog(variable, is_folder)
+        )
+        btn.pack(side="right")
+
+    def _open_dialog(self, variable, is_folder):
+        if is_folder:
+            path = filedialog.askdirectory()
+        else:
+            path = filedialog.askopenfilename(filetypes=[("Excel Files", "*.xlsx;*.xlsm")])
+        
+        if path:
+            variable.set(path)
+
+    def _process_files(self):
+        print("--- INICIANDO PROCESO ---")
+        print(f"1era Quincena: {self.path_q1.get()}")
+        print(f"2da Quincena: {self.path_q2.get()}")
+        print(f"Vacacional: {self.path_vacacional.get()}")
+        print(f"Nocturno: {self.path_nocturno.get()}")
+        print(f"Domingos: {self.path_domingos.get()}")
+        print(f"Primas: {self.path_primas.get()}")
+        print(f"Excel Base: {self.path_excel.get()}")
 
 if __name__ == "__main__":
     app = App()
