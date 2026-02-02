@@ -6,7 +6,35 @@ class PDFWorker:
     def __init__(self, path):
         self.path = path
 
+    def generar_log_auditoria(self, carpeta_logs):
+        """Metodo temporal para volcar el contenido del PDF a un TXT"""
+        import os
+        if not os.path.exists(carpeta_logs):
+            os.makedirs(carpeta_logs)
+            
+        nombre_pdf = os.path.basename(self.path)
+        ruta_log = os.path.join(carpeta_logs, f"LOG_{nombre_pdf}.txt")
+        
+        try:
+            paginas = list(extract_pages(self.path))
+            with open(ruta_log, "w", encoding="utf-8") as f:
+                f.write(f"AUDITORIA DE COORDENADAS: {nombre_pdf}\n")
+                f.write("="*50 + "\n\n")
+                
+                for element in paginas[0]:
+                    if isinstance(element, LTTextContainer):
+                        texto = " ".join(element.get_text().split())
+                        x0 = round(element.x0, 2)
+                        y0 = round(element.y0, 2)
+                        # Escribimos el texto y su ubicación exacta
+                        f.write(f"[Y0: {y0} | X0: {x0}] -> '{texto}'\n")
+            return True
+        except Exception as e:
+            print(f"Error generando log para {nombre_pdf}: {e}")
+            return False
+
     def process(self, mapper):
+
         try:
             paginas = list(extract_pages(self.path))
             if not paginas: return {"success": False, "error": "PDF vacío"}
