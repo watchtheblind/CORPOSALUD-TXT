@@ -36,14 +36,13 @@ for archivo_nombre in archivos:
     ruta_completa = os.path.join(ruta_carpeta_1era, archivo_nombre)
     worker = PDFWorker(ruta_completa)
     
-    # --- LLAMADA TEMPORAL DE AUDITORIA ---
-    # Esto creará una carpeta 'logs_debug' y llenará un txt por cada PDF
     worker.generar_log_auditoria("logs_debug")
-    
     res = worker.process(NOMINA_MAPPER)
     
     if res["success"]:
-        # Aquí el ExcelBox hace su magia usando la sigla detectada en el PDF
+        # --- AÑADE ESTE PRINT PARA VER EL PROGRESO ---
+        print(f"✅ {res['sigla']}: {res['monto']} Bs. ({res['trabajadores']} trab.)")
+        
         cuadro_1era.fill(res['sigla'], res['monto'], res['trabajadores'])
     else:
         print(f"❌ Error en {archivo_nombre}: {res['error']}")
