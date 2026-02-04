@@ -1,91 +1,102 @@
-from openpyxl import load_workbook
 from openpyxl.utils import get_column_letter
+
 class ExcelBox:
-    # VARIABLES DE EXPANSIÓN (Fáciles de modificar aquí)
-    FILAS_HACIA_ARRIBA = 5
-    FILAS_HACIA_ABAJO  = 10  # Le pongo 15 para que cubra todos los gremios del mapper
-    COLUMNAS_DERECHA   = 9
+    # Parámetros de expansión para delimitar el área de búsqueda desde el "ancla"
+    FILAS_ARRIBA = 5
+    FILAS_ABAJO  = 15
+    COL_DERECHA  = 9
 
     def __init__(self, sheet, anchor_name, mapper):
         self.sheet = sheet
         self.anchor_name = anchor_name
         self.mapper = mapper
+        
+        self.col_indices = {}  # Almacenará {'monto': index, 'cant': index, 'gremios': index}
+        self.data_rows = {}    # Almacenará {'EF ADM': row_index, ...}
+        
+        # Proceso de inicialización
         self.anchor_cell = self._find_anchor()
-        
-        self.col_indices = {} 
-        self.data_rows = {}    
-        
         if self.anchor_cell:
-            self._map_box_structure_manual()
+            self._initialize_structure()
 
     def _find_anchor(self):
+        """Busca la celda de origen (ej. '1ERA QCNA') en toda la hoja."""
         for row in self.sheet.iter_rows():
             for cell in row:
                 if str(cell.value).strip() == self.anchor_name:
                     return cell
         return None
 
-    def _map_box_structure_manual(self):
-        r_orig = self.anchor_cell.row
-        c_orig = self.anchor_cell.column
-        
-        # --- AJUSTE DE RANGOS ---
-        # Si el ancla es 1ERA QCNA y los gremios están debajo, 
-        # asegúrate de que FILAS_HACIA_ABAJO sea suficiente (ej. 20)
-        fila_inicio = r_orig - self.FILAS_HACIA_ARRIBA
-        fila_fin    = r_orig + self.FILAS_HACIA_ABAJO
-        col_fin     = c_orig + self.COLUMNAS_DERECHA
+    def _get_value_safe(self, cell):
+        """Obtiene el valor de una celda, manejando correctamente las celdas combinadas."""
+        val = cell.value
+        if val is None:
+            for merged_range in self.sheet.merged_cells.ranges:
+                if cell.coordinate in merged_range:
+                    # En openpyxl, el valor de una celda combinada reside en la celda superior izquierda
+                    val = merged_range.start_cell.value
+                    break
+        return val
 
-        # 1. IDENTIFICAR COLUMNAS (Soportando celdas combinadas)
-        for r in range(fila_inicio, r_orig + 5): # Buscamos un poco más abajo del ancla también
-            for c in range(c_orig, col_fin + 1):
+    def _map_columns(self, r_range, c_range):
+        """Busca las cabeceras de las columnas dentro del área definida."""
+        for r in r_range:
+            for c in c_range:
                 cell = self.sheet.cell(row=r, column=c)
                 val = str(cell.value or "").upper().strip()
                 
-                # Si la celda está vacía pero es parte de una combinación, openpyxl a veces devuelve None
-                # Buscamos los textos clave:
                 if "GREMIOS" in val:
                     self.col_indices['gremios'] = c
-                if "LISTADOS DE BANCO" in val:
+                elif "LISTADOS DE BANCO" in val:
                     self.col_indices['monto'] = c
-                if "CANT, DE TRABAJADORES" in val:
+                elif "CANT, DE TRABAJADORES" in val:
                     self.col_indices['cant'] = c
 
-        # 2. MAPEADO DE FILAS (El truco para celdas combinadas)
-        if 'gremios' in self.col_indices:
-            col_g = self.col_indices['gremios']
-            siglas_validas = [v[0] for v in self.mapper.values()]
+    def _map_rows(self, r_range):
+        """Mapea las filas correspondientes a cada sigla (gremio) del mapper."""
+        if 'gremios' not in self.col_indices:
+            return
+
+        col_g = self.col_indices['gremios']
+        siglas_validas = [v[0] for v in self.mapper.values()]
+        
+        for r in r_range:
+            cell = self.sheet.cell(row=r, column=col_g)
+            val = self._get_value_safe(cell)
+            val_str = str(val or "").strip()
             
-            for r in range(fila_inicio, fila_fin + 1):
-                cell = self.sheet.cell(row=r, column=col_g)
-                val = cell.value
-                
-                # --- TRUCO CELDAS COMBINADAS ---
-                # Si la celda es None, verificamos si es una celda combinada
-                if val is None:
-                    for merged_range in self.sheet.merged_cells.ranges:
-                        if cell.coordinate in merged_range:
-                            # Tomamos el valor de la celda superior izquierda del rango combinado
-                            val = merged_range.start_cell.value
-                            break
-                
-                val_str = str(val or "").strip()
-                
-                if val_str in siglas_validas:
-                    self.data_rows[val_str] = r
-        print(f"📍 Área: {get_column_letter(c_orig)} a {get_column_letter(col_fin)}")
-        print(f"📍 Filas: {fila_inicio} a {fila_fin}")
-        print(f"✅ Se mapearon {len(self.data_rows)} gremios dentro del rango.")
+            if val_str in siglas_validas:
+                self.data_rows[val_str] = r
+
+    def _initialize_structure(self):
+        """Orquestador del mapeo de la estructura del cuadro en el Excel."""
+        r_orig = self.anchor_cell.row
+        c_orig = self.anchor_cell.column
+        
+        # Definir rangos de búsqueda
+        filas_busqueda = range(r_orig - self.FILAS_ARRIBA, r_orig + self.FILAS_ABAJO + 1)
+        cols_busqueda = range(c_orig, c_orig + self.COL_DERECHA + 1)
+
+        # Ejecutar mapeos atómicos
+        self._map_columns(filas_busqueda, cols_busqueda)
+        self._map_rows(filas_busqueda)
+
+        # Logs de control
+        print(f"📍 Estructura '{self.anchor_name}' mapeada en {get_column_letter(c_orig)}{r_orig}")
+        print(f"✅ Columnas halladas: {list(self.col_indices.keys())}")
+        print(f"✅ Filas de gremios vinculadas: {len(self.data_rows)}")
 
     def fill(self, sigla, monto, cant):
-        if sigla in self.data_rows:
-            row = self.data_rows[sigla]
-            col_m = self.col_indices.get('monto')
-            col_c = self.col_indices.get('cant')
-            
-            if col_m: self.sheet.cell(row=row, column=col_m).value = monto
-            if col_c: self.sheet.cell(row=row, column=col_c).value = cant
-            
-            print(f"✍️ [OK] {self.anchor_name}: {sigla} -> Celda {get_column_letter(col_m)}{row}")
-        else:
-            print(f"⚠️ [!] {sigla} no está en el rango de {self.anchor_name}")
+        """Inserta los datos en la fila y columnas correspondientes."""
+        if sigla not in self.data_rows:
+            print(f"⚠️ [!] {sigla} no mapeado en {self.anchor_name}")
+            return
+
+        row = self.data_rows[sigla]
+        idx_m = self.col_indices.get('monto')
+        idx_c = self.col_indices.get('cant')
+
+        if idx_m: self.sheet.cell(row=row, column=idx_m).value = monto
+        if idx_c: self.sheet.cell(row=row, column=idx_c).value = cant
+        
+        print(f"✍️ [OK] {self.anchor_name} -> {sigla} escrito en fila {row}")
