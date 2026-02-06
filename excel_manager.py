@@ -39,19 +39,30 @@ class ExcelBox:
         return val
 
     def _map_columns(self, r_range, c_range):
-        """Busca las cabeceras de las columnas dentro del área definida."""
+        """Busca las cabeceras normalizando puntos y comas, dentro del área definida."""
         for r in r_range:
             for c in c_range:
                 cell = self.sheet.cell(row=r, column=c)
-                val = str(cell.value or "").upper().strip()
+                # Normalización: quitamos puntos y comas para comparar texto limpio
+                val = str(cell.value or "").upper().replace(".", "").replace(",", "").strip()
                 
                 if "GREMIOS" in val:
                     self.col_indices['gremios'] = c
                 elif "LISTADOS DE BANCO" in val:
                     self.col_indices['monto'] = c
-                elif "CANT, DE TRABAJADORES" in val:
+                elif "CANT DE TRABAJADORES" in val and "INACTIVO" not in val:
                     self.col_indices['cant'] = c
-
+                # Nuevas columnas para inactivos
+                elif "MONTO TRABAJADORES (INACTIVOS)" in val or "MONTO TRABAJADORES INACTIVOS" in val:
+                    self.col_indices['monto_inactivo'] = c
+                elif "CANT DE TRABAJ INACTIVO" in val or "CANTIDAD DE TRABAJADORES INACTIVOS" in val:
+                    self.col_indices['cant_inactivo'] = c
+                # --- AQUÍ ESTÁ EL CAMBIO PARA INACTIVOS ---
+                # Usamos "IN" para capturar "INACTIVO" o "(INACTIVOS)"
+                elif "MONTO" in val and "INACT" in val:
+                    self.col_indices['monto_inactivo'] = c
+                elif "CANT" in val and "INACT" in val:
+                    self.col_indices['cant_inactivo'] = c
     def _map_rows(self, r_range):
         """Mapea las filas correspondientes a cada sigla (gremio) del mapper."""
         if 'gremios' not in self.col_indices:
@@ -86,17 +97,28 @@ class ExcelBox:
         print(f"✅ Columnas halladas: {list(self.col_indices.keys())}")
         print(f"✅ Filas de gremios vinculadas: {len(self.data_rows)}")
 
-    def fill(self, sigla, monto, cant):
-        """Inserta los datos en la fila y columnas correspondientes."""
-        if sigla not in self.data_rows:
-            print(f"⚠️ [!] {sigla} no mapeado en {self.anchor_name}")
-            return
-
-        row = self.data_rows[sigla]
-        idx_m = self.col_indices.get('monto')
-        idx_c = self.col_indices.get('cant')
-
-        if idx_m: self.sheet.cell(row=row, column=idx_m).value = monto
-        if idx_c: self.sheet.cell(row=row, column=idx_c).value = cant
+    def fill(self, sigla, monto, cant, estado="ACTIVO"):
+        """Escribe en las columnas correspondientes según el estado."""
+        if sigla not in self.data_rows: return
         
-        print(f"✍️ [OK] {self.anchor_name} -> {sigla} escrito en fila {row}")
+        row = self.data_rows[sigla]
+        
+        # Lógica de decisión de columna
+        if estado == "INACTIVO":
+            # Si es inactivo, intentamos usar las columnas de inactivos
+            col_m = self.col_indices.get('monto_inactivo')
+            col_c = self.col_indices.get('cant_inactivo')
+            
+            # Si por alguna razón no mapeó las de inactivos, avisamos
+            if not col_m or not col_c:
+                print(f"⚠️ [!] No encontré columnas de INACTIVOS para {sigla} en {self.anchor_name}")
+                return
+        else:
+            # Si es activo, usamos las normales
+            col_m = self.col_indices.get('monto')
+            col_c = self.col_indices.get('cant')
+
+        if col_m: self.sheet.cell(row=row, column=col_m).value = monto
+        if col_c: self.sheet.cell(row=row, column=col_c).value = cant
+        
+        print(f"✍️ [{estado}] {sigla} -> Monto: {monto} | Cant: {cant} en fila {row}")

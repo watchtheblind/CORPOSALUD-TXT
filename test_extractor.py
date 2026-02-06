@@ -40,10 +40,8 @@ for archivo_nombre in archivos:
     res = worker.process(NOMINA_MAPPER)
     
     if res["success"]:
-        # --- AÑADE ESTE PRINT PARA VER EL PROGRESO ---
-        print(f"✅ {res['sigla']}: {res['monto']} Bs. ({res['trabajadores']} trab.)")
-        
-        cuadro_1era.fill(res['sigla'], res['monto'], res['trabajadores'])
+        # Pasamos el estado (ACTIVO/INACTIVO) detectado por el worker
+        cuadro_1era.fill(res['sigla'], res['monto'], res['trabajadores'], res['estado'])
     else:
         print(f"❌ Error en {archivo_nombre}: {res['error']}")
 
